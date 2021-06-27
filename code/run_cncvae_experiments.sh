@@ -1,13 +1,13 @@
 #!/bin/bash
 for integ in 'Clin+mRNA' 'CNA+mRNA' 'Clin+CNA'
 do
-    for ds in 128 256 512
+    for ds in 256
     do
-        for lsize in 16 32 64
+        for lsize in 64
         do
-            for distance in 'kl' 'mmd'
+            for distance in 'mmd'
             do
-                for beta in 1 10 15 25 50 100 
+                for beta in 50 
                 do
                     for dtype in  'ER' 'DR' 'IC' 'PAM' #'W' whole data 
                     do

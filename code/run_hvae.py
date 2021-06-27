@@ -82,7 +82,7 @@ if (args.fold == '0'): # whole data set
         vae_s1 = HVAE(args, 'catVAE')
         vae_s2 = HVAE(args, 'catVAE')
         
-    else:#integrate CNA+mRNA
+    elif (args.integration == 'CNA+mRNA'):
         s1_train = dataset.train['cnanp'] 
         s2_train = normalizeRNA(dataset.train['rnanp'])    
         args.s1_input_size= s1_train.shape[1]
@@ -90,6 +90,16 @@ if (args.fold == '0'): # whole data set
         vae_s1 = HVAE(args, 'catVAE')
         vae_s2 = HVAE(args, 'numVAE')
 
+    else: #integrate everything
+        s1_train = dataset.train['cnanp'] 
+        s2_train = normalizeRNA(dataset.train['rnanp'])   
+        s3_train = dataset.train['clin'] 
+        args.s1_input_size= s1_train.shape[1]
+        args.s2_input_size= s2_train.shape[1]
+        args.s3_input_size= s3_train.shape[1]
+        vae_s1 = HVAE(args, 'catVAE')
+        vae_s2 = HVAE(args, 'numVAE')
+        vae_s3 = HVAE(args, 'clin')
     
     vae_s1.build_model()
     vae_s2.build_model()
@@ -150,7 +160,7 @@ else:
         vae_s1 = HVAE(args, 'catVAE')
         vae_s2 = HVAE(args, 'catVAE')
     
-    else:#integrate CNA+mRNA
+    elif (args.integration == 'CNA+mRNA'):
         s1_train = dataset.train['cnanp']
         s1_test = dataset.test['cnanp']  
         s2_train, s2_test = normalizeRNA(dataset.train['rnanp'],dataset.test['rnanp'])
@@ -159,12 +169,26 @@ else:
         vae_s1 = HVAE(args, 'catVAE')
         vae_s2 = HVAE(args, 'numVAE')
 
+    else: #integrate everything
+        s1_train = dataset.train['cnanp']
+        s1_test = dataset.test['cnanp']  
+        s2_train, s2_test = normalizeRNA(dataset.train['rnanp'],dataset.test['rnanp'])
+        s3_train = dataset.train['clin'] 
+        s3_test = dataset.test['clin']    
+        args.s1_input_size= s1_train.shape[1]
+        vae_s1 = HVAE(args, 'catVAE')
+        vae_s1.build_model()
+        args.s2_input_size= s2_train.shape[1]
+        vae_s2 = HVAE(args, 'numVAE')
+        vae_s2.build_model()
+        args.s1_input_size= s3_train.shape[1]
+        vae_s3 = HVAE(args, 'catVAE')
+        vae_s3.build_model()
 
-    vae_s1.build_model()
-    vae_s2.build_model()
+
+    args.ds = int(args.ds/2 * 3)
     hvae = HVAE(args, 'H')
     hvae.build_model()
-
 
     print('TRAINING low-level VAE 1')
     vae_s1.train(s1_train, s1_test)
@@ -176,12 +200,27 @@ else:
     s2_emb_train = vae_s2.predict(s2_train)
     s2_emb_test = vae_s2.predict(s2_test)
 
+
+    print('TRAINING low-level VAE 3')
+    vae_s3.train(s3_train, s3_train)
+    s3_emb_train = vae_s3.predict(s3_train)
+    s3_emb_test = vae_s3.predict(s3_test)
+
     print('TRAINING HVAE')
-    hvae_train = np.concatenate((s1_emb_train, s2_emb_train), axis=-1)
-    hvae_test = np.concatenate((s1_emb_test, s2_emb_test), axis=-1)
+    hvae_train = np.concatenate((s1_emb_train, s2_emb_train, s3_emb_train), axis=-1)
+    hvae_test = np.concatenate((s1_emb_test, s2_emb_test, s3_emb_test), axis=-1)
     hvae.train(hvae_train, hvae_test)
     emb_train = hvae.predict(hvae_train)
     emb_test = hvae.predict(hvae_test)
+    # except :
+    #     print('EXCEPTION')
+    #     print('TRAINING HVAE')
+    #     hvae_train = np.concatenate((s1_emb_train, s2_emb_train), axis=-1)
+    #     hvae_test = np.concatenate((s1_emb_test, s2_emb_test), axis=-1)
+    #     hvae.train(hvae_train, hvae_test)
+    #     emb_train = hvae.predict(hvae_train)
+    #     emb_test = hvae.predict(hvae_test)
+
 
     if (args.writedir == ''):
         emb_save_dir = 'results/HVAE_'+format(args.integration)+'_integration/hvae_LS_'+format(args.ls)+'_DS_'+format(args.ds)+'_'+format(args.distance)+'_beta_'+format(args.beta)
