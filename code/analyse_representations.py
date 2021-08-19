@@ -12,6 +12,9 @@ import argparse
 from sklearn.metrics import accuracy_score
 from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+import lightgbm as lgb
+
 
 from sklearn.svm import SVC
 from misc.dataset import Dataset, DatasetWhole
@@ -65,6 +68,7 @@ parser.add_argument('--tSNE', help='generate a tSNE plot (True/False). Default i
 
 
 parser.add_argument('--NB', help='train a Naive Bayes Classifier. Default True', type=str2bool, default=True)
+parser.add_argument('--XGB', help='train a XGBoost. Default True', type=str2bool, default=True)
 parser.add_argument('--SVM', help='train a SVM Classifier. Default False', type=str2bool, default=False)
 parser.add_argument('--RF', help='train a Random Forest. Default False', type=str2bool, default=False)
 
@@ -87,11 +91,12 @@ if (args.dtype == 'W'):
      
     if (args.integration=='Clin+mRNA'):
          train_raw.append(np.concatenate((clin_train,rna_train),axis=-1))
-    
     elif (args.integration=='Clin+CNA'):
         train_raw.append(np.concatenate((clin_train,cna_train),axis=-1))
-    else:
+    elif (args.integration=='CNA+mRNA'):
          train_raw.append(np.concatenate((cna_train,rna_train),axis=-1))
+    else:
+         train_raw.append(np.concatenate((cna_train,rna_train,clin_train),axis=-1))
 
 else:
  
@@ -118,9 +123,18 @@ else:
         elif (args.integration=='Clin+CNA'):
              train_raw.append(np.concatenate((clin_train,cna_train),axis=-1))
              test_raw.append(np.concatenate((clin_test,cna_test),axis=-1))
-        else:
+        elif (args.integration=='CNA+mRNA'):
              train_raw.append(np.concatenate((cna_train,rna_train),axis=-1))
              test_raw.append(np.concatenate((cna_test,rna_test),axis=-1))
+        else:
+             train_cat = np.concatenate((cna_train,rna_train), axis=-1)
+             train_cat = np.concatenate((train_cat,clin_train), axis=-1)
+             train_raw.append(train_cat)
+             print(train_cat.shape)
+             test_cat = np.concatenate((cna_test,rna_test), axis=-1)
+             test_cat = np.concatenate((test_cat,clin_test), axis=-1)
+             test_raw.append(test_cat)
+             print("Made train and test raws")
          
         if(args.dtype=='ER'):
              train_labels.append(dataset.train["ernp"])
@@ -230,16 +244,13 @@ else:
     if args.model != 'BENCH':
         with open(savedir+'/'+format(args.model)+'_'+format(args.integration)+'_'+format(args.dtype)+'.csv', 'w') as f: 
             for model in [args.model]:
-                print("------------------------------------------------",file=f)
-                print(model,file=f)
-                print("------------------------------------------------",file=f)
-                print("model, type_integration, regularization, beta, latent_size, dense_layer_size, NB_Train_ACC, NB_Train_ACC_std, NB_Test_ACC, NB_Test_ACC_std, SVM_Train_ACC, SVM_Train_ACC_std, SVM_Test_ACC, SVM_Test_ACC_std, RF_Train_ACC, RF_Train_ACC_std, RF_Test_ACC, RF_Test_ACC_std ",file=f)
+                print("model, type_integration, regularization, beta, latent_size, dense_layer_size, NB_Train_ACC, NB_Train_ACC_std, NB_Test_ACC, NB_Test_ACC_std, SVM_Train_ACC, SVM_Train_ACC_std, SVM_Test_ACC, SVM_Test_ACC_std, RF_Train_ACC, RF_Train_ACC_std, RF_Test_ACC, RF_Test_ACC_std, XGB_Train_ACC, XGB_Train_ACC_std, XGB_Test_ACC, XGB_Test_ACC_std ",file=f)
               
                 
                 for dist in ['mmd','kl']:
                     for beta in [1,10,15,25,50,100]:
-                        for ls in [16,32,64]:
-                            for ds in [128,256,512]:
+                        for ls in [16,32,64,128]:
+                            for ds in [128,192,256,384,512]:
                                 
                     
                                     accsTrain_NB=[]
@@ -251,7 +262,8 @@ else:
                                     accsTrain_RF=[]
                                     accsTest_RF=[]
                                     
-                                   
+                                    accsTrain_XGB=[]
+                                    accsTest_XGB=[]
         
                                     note=""
                                     
@@ -260,7 +272,8 @@ else:
                                     model_conf=model+'_'+format(args.integration)+'_integration/'+format(model.lower())+'_LS_'+format(ls)+'_DS_'+format(ds)+'_'+format(dist)+'_beta_'+format(beta)
                                    
                                     if not os.path.isdir(resdir+'/'+model_conf):
-                                        continue
+                                      print(f"Missing directory {resdir} / {model_conf}")
+                                      continue
                                     else:
                                         print("Analysing: "+ model_conf)
                                         for fold in range(1,args.numfolds+1):
@@ -325,6 +338,21 @@ else:
                                                 else:
                                                   accsTrain_RF.append(0.0)
                                                   accsTest_RF.append(0.0)
+
+                                                if args.XGB:
+                                                  train_data = lgb.Dataset(emb_train, label=train_labels[fold-1])
+
+                                                  xgb = lgb.train({'random_state':42, 'objective':'binary', 'metric':'auc'}, train_data)
+
+                                                  x_p_classes=(xgb.predict(emb_train)).round().astype(int)
+                                                  accTrain=accuracy_score(train_labels[fold-1],x_p_classes)
+                                                  accsTrain_XGB.append(accTrain)
+                                                   
+                                                  y_p_classes=(xgb.predict(emb_test)).round().astype(int)
+                                                  accsTest_XGB.append(accuracy_score(test_labels[fold-1],y_p_classes))
+                                                else:
+                                                  accsTrain_XGB.append(0.0)
+                                                  accsTest_XGB.append(0.0)
            
            
                                     print(format(model)+','+format(args.integration)+','+format(dist)+','+format(beta)+','+format(ls)+','+format(ds)
@@ -342,7 +370,13 @@ else:
                                                     +','+ format(np.mean(accsTrain_RF)) 
                                                     +','+ format(np.var(accsTrain_RF))
                                                     +','+ format(np.mean(accsTest_RF)) 
-                                                    +','+ format(np.var(accsTest_RF))                            
+                                                    +','+ format(np.var(accsTest_RF))
+
+                                                    +','+ format(np.mean(accsTrain_XGB)) 
+                                                    +','+ format(np.var(accsTrain_XGB))
+                                                    +','+ format(np.mean(accsTest_XGB)) 
+                                                    +','+ format(np.var(accsTest_XGB))
+
                                                     +note,file=f)
                                     f.flush()
                                     print('Done.')

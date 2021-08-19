@@ -12,7 +12,7 @@ configs = {
  
         'ds': 128,  # Intermediate dense layer size
         'act': 'elu',
-        'epochs': 150,
+        'epochs': 500,
         'bs': 64,  # Batch size
         'dropout':0.2
         #'beta': 1.0,  # Beta VAE parameter
@@ -231,6 +231,8 @@ else:
     emb_save_file = args.dtype +args.fold+'.npz'
     emb_save_file1 = 's1_'+args.dtype +args.fold+'.npz'
     emb_save_file2 = 's2_'+args.dtype +args.fold+'.npz'
+    emb_save_file3 = 's3_'+args.dtype +args.fold+'.npz'
     save_embedding(emb_save_dir,emb_save_file,emb_train, emb_test)
     save_embedding(emb_save_dir,emb_save_file1,s1_emb_train, s1_emb_test)
     save_embedding(emb_save_dir,emb_save_file2,s2_emb_train, s2_emb_test)
+    save_embedding(emb_save_dir,emb_save_file3,s3_emb_train, s3_emb_test)

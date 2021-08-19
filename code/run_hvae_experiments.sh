@@ -3,13 +3,13 @@ for integ in 'W'
 do
     for ds in 128
     do
-        for lsize in 64
+        for lsize in 64 128
         do
             for distance in 'mmd'
             do
-                for beta in 50
+                for beta in 15 50 100 
                 do
-                    for dtype in  'ER' #'W' whole data 
+                    for dtype in  'DR' 'IC' 'PAM' #'W' whole data 
                     do
                         for fold in 1 2 3 4 5 #0 whole data
                         do
